@@ -315,10 +315,10 @@ impl std::error::Error for CassError {}
 #[derive(Clone, Debug)]
 pub struct SessionStats {
     pub req_count: u64,
-    pub retry_errors: HashSet<String>,
-    pub retry_error_count: u64,
     pub req_errors: HashSet<String>,
     pub req_error_count: u64,
+    pub req_retry_errors: HashSet<String>,
+    pub req_retry_count: u64,
     pub row_count: u64,
     pub queue_length: u64,
     pub mean_queue_length: f32,
@@ -339,7 +339,12 @@ impl SessionStats {
         Instant::now()
     }
 
-    pub fn complete_request(&mut self, duration: Duration, total_rows: Option<u64>, rs: &Result<QueryResult, QueryError>) {
+    pub fn complete_request(
+        &mut self,
+        duration: Duration,
+        total_rows: Option<u64>,
+        rs: &Result<QueryResult, QueryError>,
+    ) {
         self.queue_length -= 1;
         let duration_ns = duration.as_nanos().clamp(1, u64::MAX as u128) as u64;
         self.resp_times_ns.record(duration_ns).unwrap();
@@ -359,9 +364,9 @@ impl SessionStats {
     }
 
     pub fn store_retry_error(&mut self, error_str: String) {
-        self.retry_error_count += 1;
-        if self.retry_error_count <= PRINT_RETRY_ERROR_LIMIT {
-            self.retry_errors.insert(error_str);
+        self.req_retry_count += 1;
+        if self.req_retry_count <= PRINT_RETRY_ERROR_LIMIT {
+            self.req_retry_errors.insert(error_str);
         }
     }
 
@@ -370,10 +375,10 @@ impl SessionStats {
         self.req_error_count = 0;
         self.row_count = 0;
         self.req_count = 0;
+        self.req_retry_count = 0;
         self.mean_queue_length = 0.0;
-        self.retry_error_count = 0;
-        self.retry_errors.clear();
         self.req_errors.clear();
+        self.req_retry_errors.clear();
         self.resp_times_ns.clear();
 
         // note that current queue_length is *not* reset to zero because there
@@ -385,10 +390,10 @@ impl Default for SessionStats {
     fn default() -> Self {
         SessionStats {
             req_count: 0,
-            retry_errors: HashSet::new(),
-            retry_error_count: 0,
             req_errors: HashSet::new(),
             req_error_count: 0,
+            req_retry_errors: HashSet::new(),
+            req_retry_count: 0,
             row_count: 0,
             queue_length: 0,
             mean_queue_length: 0.0,
