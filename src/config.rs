@@ -3,6 +3,7 @@ use std::error::Error;
 use std::num::NonZeroUsize;
 use std::path::PathBuf;
 use std::str::FromStr;
+use std::time::Duration;
 
 use anyhow::anyhow;
 use chrono::Utc;
@@ -95,8 +96,8 @@ impl FromStr for Interval {
 /// Controls the min and max retry interval for retry mechanism
 #[derive(Debug, Clone, Copy, PartialEq, Serialize, Deserialize)]
 pub struct RetryInterval {
-    pub min_ms: u64,
-    pub max_ms: u64,
+    pub min: Duration,
+    pub max: Duration,
 }
 
 impl RetryInterval {
@@ -105,32 +106,13 @@ impl RetryInterval {
         if values.len() > 2 {
             return None;
         }
-        let min_ms = RetryInterval::parse_time(values.first().unwrap_or(&""))?;
-        let max_ms = RetryInterval::parse_time(values.get(1).unwrap_or(&"")).unwrap_or(min_ms);
-        if min_ms > max_ms {
+        let min = parse_duration::parse(values.first().unwrap_or(&"")).ok()?;
+        let max = parse_duration::parse(values.get(1).unwrap_or(&"")).unwrap_or(min);
+        if min > max {
             None
         } else {
-            Some(RetryInterval { min_ms, max_ms })
+            Some(RetryInterval { min, max })
         }
-    }
-
-    fn parse_time(time: &str) -> Option<u64> {
-        let trimmed_time = time.trim();
-        if trimmed_time.is_empty() {
-            return None;
-        }
-
-        let value_str = match trimmed_time {
-            s if s.ends_with("ms") => s.trim_end_matches("ms"),
-            s if s.ends_with('s') => {
-                let num = s.trim_end_matches('s').parse::<u64>().ok()?;
-                return Some(num * 1000);
-            }
-            _ => trimmed_time,
-        };
-
-        let value = value_str.trim().parse::<u64>().ok()?;
-        Some(value)
     }
 }
 
@@ -197,8 +179,13 @@ pub struct ConnectionConf {
     #[clap(long("consistency"), required = false, default_value = "LOCAL_QUORUM")]
     pub consistency: Consistency,
 
-    #[clap(long("request-timeout"), default_value = "5", value_name = "COUNT")]
-    pub request_timeout: NonZeroUsize,
+    #[clap(
+        long("request-timeout"),
+        default_value = "5s",
+        value_name = "DURATION",
+        value_parser = parse_duration::parse
+    )]
+    pub request_timeout: Duration,
 
     /// Page size defines the number of rows to get in a single select-query
     #[clap(long("page-size"), default_value = "501", value_name = "COUNT")]
@@ -210,7 +197,7 @@ pub struct ConnectionConf {
     #[clap(
         long("retry-interval"),
         default_value = "100ms,5s",
-        value_name = "TIME[,TIME]"
+        value_name = "MIN[,MAX]"
     )]
     pub retry_interval: RetryInterval,
 }
