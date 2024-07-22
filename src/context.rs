@@ -74,7 +74,7 @@ pub async fn connect(conf: &ConnectionConf) -> Result<Context, CassError> {
     let profile = ExecutionProfile::builder()
         .consistency(conf.consistency.scylla_consistency())
         .load_balancing_policy(policy_builder.build())
-        .request_timeout(Some(Duration::from_secs(conf.request_timeout.get() as u64)))
+        .request_timeout(Some(conf.request_timeout))
         .build();
 
     let scylla_session = SessionBuilder::new()
@@ -403,11 +403,11 @@ impl Default for SessionStats {
 }
 
 pub fn get_exponential_retry_interval(
-    min_interval: u64,
-    max_interval: u64,
+    min_interval: Duration,
+    max_interval: Duration,
     current_attempt_num: u64,
-) -> u64 {
-    let min_interval_float: f64 = min_interval as f64;
+) -> Duration {
+    let min_interval_float: f64 = min_interval.as_secs_f64();
     let mut current_interval: f64 =
         min_interval_float * (2u64.pow(current_attempt_num.try_into().unwrap_or(0)) as f64);
 
@@ -415,7 +415,7 @@ pub fn get_exponential_retry_interval(
     current_interval += random::<f64>() * min_interval_float;
     current_interval -= min_interval_float / 2.0;
 
-    std::cmp::min(current_interval as u64, max_interval)
+    Duration::from_secs_f64(current_interval.min(max_interval.as_secs_f64()))
 }
 
 pub async fn handle_retry_error(
@@ -424,15 +424,15 @@ pub async fn handle_retry_error(
     current_error: CassError,
 ) {
     let current_retry_interval = get_exponential_retry_interval(
-        ctxt.retry_interval.min_ms,
-        ctxt.retry_interval.max_ms,
+        ctxt.retry_interval.min,
+        ctxt.retry_interval.max,
         current_attempt_num,
     );
 
     let mut next_attempt_str = String::new();
     let is_last_attempt = current_attempt_num == ctxt.retry_number;
     if !is_last_attempt {
-        next_attempt_str += &format!("[Retry in {} ms]", current_retry_interval);
+        next_attempt_str += &format!("[Retry in {} ms]", current_retry_interval.as_millis());
     }
     let err_msg = format!(
         "{}: [ERROR][Attempt {}/{}]{} {}",
@@ -444,7 +444,7 @@ pub async fn handle_retry_error(
     );
     if !is_last_attempt {
         ctxt.stats.try_lock().unwrap().store_retry_error(err_msg);
-        tokio::time::sleep(Duration::from_millis(current_retry_interval)).await;
+        tokio::time::sleep(current_retry_interval).await;
     } else {
         eprintln!("{}", err_msg);
     }
