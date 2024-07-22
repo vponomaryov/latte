@@ -37,6 +37,7 @@ use scylla::transport::session::PoolSize;
 use scylla::{ExecutionProfile, QueryResult, SessionBuilder};
 use statrs::distribution::{Normal, Uniform};
 use tokio::time::{Duration, Instant};
+use tracing::error;
 use try_lock::TryLock;
 use uuid::{Variant, Version};
 
@@ -442,6 +443,7 @@ pub async fn handle_retry_error(
         next_attempt_str,
         current_error,
     );
+    error!("{}", err_msg);
     if !is_last_attempt {
         ctxt.stats.try_lock().unwrap().store_retry_error(err_msg);
         tokio::time::sleep(current_retry_interval).await;
