@@ -564,18 +564,18 @@ impl<'a> Display for RunConfigCmp<'a> {
             self.line("└─", "op", |conf| {
                 Quantity::from(conf.sampling_interval.count())
             }),
-            self.line("Request timeout", "", |conf| {
-                Quantity::from(conf.connection.request_timeout)
+            self.line("Request timeout", "s", |conf| {
+                Quantity::from(conf.connection.request_timeout.as_secs_f64())
             }),
             self.line("Retries", "", |_| Quantity::from("")),
             self.line("┌──────┴number", "", |conf| {
                 Quantity::from(conf.connection.retry_number)
             }),
             self.line("├─min interval", "ms", |conf| {
-                Quantity::from(conf.connection.retry_interval.min_ms)
+                Quantity::from(conf.connection.retry_interval.min.as_secs_f64() * 1000.0)
             }),
             self.line("└─max interval", "ms", |conf| {
-                Quantity::from(conf.connection.retry_interval.max_ms)
+                Quantity::from(conf.connection.retry_interval.max.as_secs_f64() * 1000.0)
             }),
         ];
 
