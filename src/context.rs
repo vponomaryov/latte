@@ -660,7 +660,7 @@ impl Context {
         let deserialized: Value = rmp_serde::from_slice(&serialized)?;
         Ok(Context {
             session: self.session.clone(),
-            page_size: self.page_size.clone(),
+            page_size: self.page_size,
             statements: self.statements.clone(),
             stats: TryLock::new(SessionStats::default()),
             retry_number: self.retry_number,
@@ -707,6 +707,7 @@ impl Context {
     }
 
     /// Creates a preset for uneven row distribution among partitions
+    #[allow(clippy::comparison_chain)]
     pub async fn init_partition_row_distribution_preset(
         &mut self,
         preset_name: &str,
