@@ -603,6 +603,7 @@ impl RowDistributionPreset {
 /// It also tracks query execution metrics such as number of requests, rows, response times etc.
 #[derive(Any)]
 pub struct Context {
+    start_time: TryLock<Instant>,
     // NOTE: 'session' is defined as optional for being able to test methods
     // which don't 'depend on'/'use' the 'session' object.
     session: Option<Arc<scylla::Session>>,
@@ -638,6 +639,7 @@ impl Context {
         retry_interval: RetryInterval,
     ) -> Context {
         Context {
+            start_time: TryLock::new(Instant::now()),
             session: session.map(Arc::new),
             page_size,
             statements: HashMap::new(),
@@ -669,6 +671,7 @@ impl Context {
             load_cycle_count: self.load_cycle_count,
             preferred_datacenter: self.preferred_datacenter.clone(),
             data: deserialized,
+            start_time: TryLock::new(*self.start_time.try_lock().unwrap()),
         })
     }
 
@@ -1037,6 +1040,10 @@ impl Context {
         }
     }
 
+    pub fn elapsed_secs(&self) -> f64 {
+        self.start_time.try_lock().unwrap().elapsed().as_secs_f64()
+    }
+
     /// Returns the current accumulated request stats snapshot and resets the stats.
     pub fn take_session_stats(&self) -> SessionStats {
         let mut stats = self.stats.try_lock().unwrap();
@@ -1046,8 +1053,9 @@ impl Context {
     }
 
     /// Resets query and request counters
-    pub fn reset_session_stats(&self) {
+    pub fn reset(&self) {
         self.stats.try_lock().unwrap().reset();
+        *self.start_time.try_lock().unwrap() = Instant::now();
     }
 }
 
