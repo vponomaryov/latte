@@ -290,7 +290,6 @@ async fn run(conf: RunCommand) -> Result<()> {
     .await
     {
         Ok(stats) => stats,
-        Err(LatteError::Interrupted(stats)) => *stats,
         Err(e) => {
             return Err(e);
         }
