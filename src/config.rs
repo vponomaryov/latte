@@ -421,7 +421,20 @@ pub struct RunCommand {
     #[clap(short('p'), long, default_value = "128", value_name = "COUNT")]
     pub concurrency: NonZeroUsize,
 
-    /// Throughput sampling period, in seconds.
+    /// Sampling period, in seconds.
+    ///
+    /// While running the workload, periodically takes a snapshot of the statistics
+    /// and records it as a separate data point in the log. At the end, the log gets saved to
+    /// the final report. The sampling log can be used later for generating plots
+    /// or HDR histogram logs for further detailed data analysis.
+    ///
+    /// Sampling period does not affect the value of the final statistics computed
+    /// for the whole run. You'll not get more accurate measurements by sampling more frequently
+    /// (assuming the same total length of the run).   
+    ///
+    /// The sampling log is used for analyzing throughput fluctuations and the number of samples
+    /// does affect the accuracy of estimating the throughput error to some degree.
+    /// The throughput error estimate may be inaccurate if you collect less than 10 samples.  
     #[clap(
         short('s'),
         long("sampling"),

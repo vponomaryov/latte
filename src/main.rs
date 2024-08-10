@@ -205,9 +205,9 @@ async fn load(conf: LoadCommand) -> Result<()> {
         "Loading...",
         &load_options,
         config::Interval::Unbounded,
-        false,
         loader,
         !conf.quiet,
+        false,
     )
     .await?;
 
@@ -268,9 +268,9 @@ async fn run(conf: RunCommand) -> Result<()> {
             "Warming up...",
             &warmup_options,
             Interval::Unbounded,
-            conf.generate_report,
             runner.clone()?,
             !conf.quiet,
+            false,
         )
         .await?;
     }
@@ -298,9 +298,9 @@ async fn run(conf: RunCommand) -> Result<()> {
         "Running...",
         &exec_options,
         conf.sampling_interval,
-        conf.generate_report,
         runner,
         !conf.quiet,
+        conf.generate_report,
     )
     .await
     {
