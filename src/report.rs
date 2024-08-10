@@ -656,7 +656,7 @@ impl<'a> Display for BenchmarkCmp<'a> {
             writeln!(f, "{}", fmt_cmp_header(true))?;
         }
 
-        let mut summary: Vec<Box<dyn Display>> = vec![
+        let summary: Vec<Box<dyn Display>> = vec![
             self.line("Elapsed time", "s", |s| {
                 Quantity::from(s.elapsed_time_s).with_precision(3)
             }),
@@ -683,104 +683,84 @@ impl<'a> Display for BenchmarkCmp<'a> {
             self.line("└─", "row/req", |s| {
                 Quantity::from(s.row_count_per_req).with_precision(1)
             }),
-            // self.line("Samples", "", |s| Quantity::from(s.samples_count)),
+            self.line("Concurrency", "req", |s| {
+                Quantity::from(s.concurrency).with_precision(0)
+            }),
+            self.line("└─", "%", |s| {
+                Quantity::from(s.concurrency_ratio).with_precision(0)
+            }),
+            self.line("Throughput", "op/s", |s| {
+                Quantity::from(s.cycle_throughput).with_precision(0)
+            })
+            .with_significance(self.cmp_cycle_throughput())
+            .with_orientation(1)
+            .into_box(),
+            self.line("├─", "req/s", |s| {
+                Quantity::from(s.req_throughput).with_precision(0)
+            })
+            .with_significance(self.cmp_req_throughput())
+            .with_orientation(1)
+            .into_box(),
+            self.line("└─", "row/s", |s| {
+                Quantity::from(s.row_throughput).with_precision(0)
+            })
+            .with_significance(self.cmp_row_throughput())
+            .with_orientation(1)
+            .into_box(),
+            self.line("Cycle latency", "ms", |s| {
+                Quantity::from(s.cycle_latency.mean).with_precision(3)
+            })
+            .with_significance(self.cmp_mean_resp_time())
+            .with_orientation(-1)
+            .into_box(),
+            self.line("Request latency", "ms", |s| {
+                Quantity::from(s.request_latency.as_ref().map(|rt| rt.mean)).with_precision(3)
+            })
+            .with_significance(self.cmp_mean_resp_time())
+            .with_orientation(-1)
+            .into_box(),
         ];
-        if self.v1.log.len() > 1 {
-            let summary_part2: Vec<Box<dyn Display>> = vec![
-                // self.line("Mean sample size", "op", |s| {
-                //     Quantity::from(s.log.iter().map(|s| s.cycle_count as f64).mean())
-                //         .with_precision(0)
-                // }),
-                // self.line("└─", "req", |s| {
-                //     Quantity::from(s.log.iter().map(|s| s.request_count as f64).mean())
-                //         .with_precision(0)
-                // }),
-                self.line("Concurrency", "req", |s| {
-                    Quantity::from(s.concurrency).with_precision(0)
-                }),
-                self.line("└─", "%", |s| {
-                    Quantity::from(s.concurrency_ratio).with_precision(0)
-                }),
-                self.line("Throughput", "op/s", |s| {
-                    Quantity::from(s.cycle_throughput).with_precision(0)
-                })
-                .with_significance(self.cmp_cycle_throughput())
-                .with_orientation(1)
-                .into_box(),
-                self.line("├─", "req/s", |s| {
-                    Quantity::from(s.req_throughput).with_precision(0)
-                })
-                .with_significance(self.cmp_req_throughput())
-                .with_orientation(1)
-                .into_box(),
-                self.line("└─", "row/s", |s| {
-                    Quantity::from(s.row_throughput).with_precision(0)
-                })
-                .with_significance(self.cmp_row_throughput())
-                .with_orientation(1)
-                .into_box(),
-                // self.line("Mean cycle time", "ms", |s| {
-                self.line("Cycle latency", "ms", |s| {
-                    // Quantity::from(&s.cycle_time_ms).with_precision(3)
-                    Quantity::from(s.cycle_latency.mean).with_precision(3)
-                })
-                .with_significance(self.cmp_mean_resp_time())
-                .with_orientation(-1)
-                .into_box(),
-                // self.line("Mean resp. time", "ms", |s| {
-                self.line("Request latency", "ms", |s| {
-                    // Quantity::from(s.resp_time_ms.as_ref().map(|rt| rt.mean)).with_precision(3)
-                    Quantity::from(s.request_latency.as_ref().map(|rt| rt.mean)).with_precision(3)
-                })
-                .with_significance(self.cmp_mean_resp_time())
-                .with_orientation(-1)
-                .into_box(),
-            ];
-            summary.extend(summary_part2);
-        }
         for l in summary {
             writeln!(f, "{l}")?;
         }
 
-        if self.v1.log.len() > 1 {
-            let resp_time_percentiles = [
-                Percentile::Min,
-                Percentile::P25,
-                Percentile::P50,
-                Percentile::P75,
-                Percentile::P90,
-                Percentile::P95,
-                Percentile::P98,
-                Percentile::P99,
-                Percentile::P99_9,
-                Percentile::P99_99,
-                Percentile::Max,
-            ];
+        let resp_time_percentiles = [
+            Percentile::Min,
+            Percentile::P25,
+            Percentile::P50,
+            Percentile::P75,
+            Percentile::P90,
+            Percentile::P95,
+            Percentile::P98,
+            Percentile::P99,
+            Percentile::P99_9,
+            Percentile::P99_99,
+            Percentile::Max,
+        ];
 
-            for fn_name in self.v1.cycle_latency_by_fn.keys() {
-                writeln!(f)?;
-                writeln!(
-                    f,
-                    "{}",
-                    fmt_section_header(format!("CYCLE LATENCY for {fn_name} [ms] ").as_str())
-                )?;
-                if self.v2.is_some() {
-                    writeln!(f, "{}", fmt_cmp_header(true))?;
-                }
+        for fn_name in self.v1.cycle_latency_by_fn.keys() {
+            writeln!(f)?;
+            writeln!(
+                f,
+                "{}",
+                fmt_section_header(format!("CYCLE LATENCY for {fn_name} [ms] ").as_str())
+            )?;
+            if self.v2.is_some() {
+                writeln!(f, "{}", fmt_cmp_header(true))?;
+            }
 
-                for p in resp_time_percentiles.iter() {
-                    let l = self
-                        .line(p.name(), "", |s| {
-                            let rt = s
-                                .cycle_latency_by_fn
-                                .get(fn_name)
-                                .map(|l| l.percentiles.get(*p));
-                            Quantity::from(rt).with_precision(3)
-                        })
-                        .with_orientation(-1)
-                        .with_significance(self.cmp_resp_time_percentile(*p));
-                    writeln!(f, "{l}")?;
-                }
+            for p in resp_time_percentiles.iter() {
+                let l = self
+                    .line(p.name(), "", |s| {
+                        let rt = s
+                            .cycle_latency_by_fn
+                            .get(fn_name)
+                            .map(|l| l.percentiles.get(*p));
+                        Quantity::from(rt).with_precision(3)
+                    })
+                    .with_orientation(-1)
+                    .with_significance(self.cmp_resp_time_percentile(*p));
+                writeln!(f, "{l}")?;
             }
         }
 

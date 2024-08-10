@@ -177,9 +177,9 @@ pub async fn par_execute(
     name: &str,
     exec_options: &ExecutionOptions,
     sampling: Interval,
-    store_samples: bool,
     workload: Workload,
     show_progress: bool,
+    keep_log: bool,
 ) -> Result<BenchmarkStats> {
     if exec_options.cycle_range.1 <= exec_options.cycle_range.0 {
         return Err(LatteError::Configuration(format!(
@@ -203,7 +203,7 @@ pub async fn par_execute(
     let progress = Arc::new(StatusLine::with_options(progress, progress_opts));
     let deadline = BoundedCycleCounter::new(exec_options.duration, exec_options.cycle_range);
     let mut streams = Vec::with_capacity(thread_count);
-    let mut stats = Recorder::start(rate, concurrency, store_samples);
+    let mut stats = Recorder::start(rate, concurrency, keep_log);
 
     for _ in 0..thread_count {
         let s = spawn_stream(

@@ -202,7 +202,6 @@ pub struct BenchmarkStats {
     pub errors_ratio: Option<f64>,
     pub row_count: u64,
     pub row_count_per_req: Option<f64>,
-    pub samples_count: u64,
     pub cycle_throughput: Mean,
     pub cycle_throughput_ratio: Option<f64>,
     pub req_throughput: Mean,
@@ -297,17 +296,20 @@ pub struct Recorder {
     pub request_latency: LatencyDistributionRecorder,
     pub concurrency_meter: TimeSeriesStats,
     log: Vec<Sample>,
-    store_samples: bool,
-    samples_counter: u64,
     rate_limit: Option<f64>,
     concurrency_limit: NonZeroUsize,
+    keep_log: bool,
 }
 
 impl Recorder {
     /// Creates a new recorder.
     /// The `rate_limit` and `concurrency_limit` parameters are used only as the
     /// reference levels for relative throughput and relative parallelism.
-    pub fn start(rate_limit: Option<f64>, concurrency_limit: NonZeroUsize, store_samples: bool) -> Recorder {
+    pub fn start(
+        rate_limit: Option<f64>,
+        concurrency_limit: NonZeroUsize,
+        keep_log: bool,
+    ) -> Recorder {
         let start_time = SystemTime::now();
         let start_instant = Instant::now();
         Recorder {
@@ -318,8 +320,6 @@ impl Recorder {
             start_cpu_time: ProcessTime::now(),
             end_cpu_time: ProcessTime::now(),
             log: Vec::new(),
-            store_samples: store_samples,
-            samples_counter: 0,
             rate_limit,
             concurrency_limit,
             cycle_count: 0,
@@ -334,6 +334,7 @@ impl Recorder {
             request_latency: LatencyDistributionRecorder::default(),
             throughput_meter: ThroughputMeter::default(),
             concurrency_meter: TimeSeriesStats::default(),
+            keep_log,
         }
     }
 
@@ -365,13 +366,10 @@ impl Recorder {
         if self.errors.len() < MAX_KEPT_ERRORS {
             self.errors.extend(sample.req_errors.iter().cloned());
         }
-
-        if self.store_samples || self.log.is_empty() {
-            self.log.push(sample);
-        } else {
-            self.log[0] = sample;
+        if !self.keep_log {
+            self.log.clear();
         }
-        self.samples_counter += 1;
+        self.log.push(sample);
         self.log.last().unwrap()
     }
 
@@ -396,6 +394,10 @@ impl Recorder {
         let concurrency = self.concurrency_meter.mean();
         let concurrency_ratio = 100.0 * concurrency.value / self.concurrency_limit.get() as f64;
 
+        if !self.keep_log {
+            self.log.clear();
+        }
+
         BenchmarkStats {
             start_time: self.start_time.into(),
             end_time: self.end_time.into(),
@@ -414,7 +416,6 @@ impl Recorder {
             requests_per_cycle: self.request_count as f64 / self.cycle_count as f64,
             row_count: self.row_count,
             row_count_per_req: not_nan(self.row_count as f64 / self.request_count as f64),
-            samples_count: self.samples_counter,
             cycle_throughput,
             cycle_throughput_ratio,
             req_throughput,
