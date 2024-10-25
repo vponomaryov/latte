@@ -193,7 +193,12 @@ pub struct ConnectionConf {
     #[clap(long("page-size"), default_value = "501", value_name = "COUNT")]
     pub page_size: NonZeroUsize,
 
-    #[clap(long("retry-number"), default_value = "10", value_name = "COUNT")]
+    #[clap(
+        long("retry-number"),
+        aliases = &["retries"],
+        default_value = "10",
+        value_name = "COUNT"
+    )]
     pub retry_number: u64,
 
     #[clap(
@@ -468,7 +473,8 @@ pub struct RunCommand {
 
     /// Function of the workload to invoke.
     #[clap(
-        long,
+        long("function"),
+        aliases = &["functions"],
         short('f'),
         required = false,
         default_value = "run",
