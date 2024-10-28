@@ -31,7 +31,7 @@ pub mod workload;
 fn interval_stream(rate: f64) -> IntervalStream {
     let period = tokio::time::Duration::from_nanos(max(1, (1000000000.0 / rate) as u64));
     let mut interval = tokio::time::interval(period);
-    interval.set_missed_tick_behavior(MissedTickBehavior::Skip);
+    interval.set_missed_tick_behavior(MissedTickBehavior::Burst);
     IntervalStream::new(interval)
 }
 
