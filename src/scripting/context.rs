@@ -309,7 +309,7 @@ impl Context {
         // Parse the 'rows_per_partitions_groups' string parameter into a HashMap
         let mut partn_multipliers: HashMap<String, (f64, f64)> = HashMap::new();
         if rows_per_partitions_groups.is_empty() {
-            rows_per_partitions_groups = "95:1,4:2,1:4";
+            rows_per_partitions_groups = "100:1";
         }
         let mut summary_percentage: f64 = 0.0;
         let mut duplicates_dump: Vec<String> = Vec::new();
