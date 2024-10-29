@@ -325,7 +325,7 @@ Then, in the target functions we can reuse it like following:
 ```
   pub async fn insert(db, i) {
     let idx = i % ROW_COUNT + OFFSET;
-    let partition_idx = db.get_partition_idx("foo", idx).await? + OFFSET;
+    let partition_idx = db.get_partition_idx("foo", idx).await + OFFSET;
     ...
   }
 ```
