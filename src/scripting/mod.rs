@@ -28,6 +28,7 @@ fn try_install(
     context_module.function_meta(functions::execute)?;
     context_module.function_meta(functions::prepare)?;
     context_module.function_meta(functions::execute_prepared)?;
+    context_module.function_meta(functions::batch_prepared)?;
     context_module.function_meta(functions::init_partition_row_distribution_preset)?;
     context_module.function_meta(functions::get_partition_idx)?;
     context_module.function_meta(functions::get_datacenters)?;
