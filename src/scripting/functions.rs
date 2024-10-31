@@ -260,6 +260,16 @@ pub async fn execute_prepared(
 }
 
 #[rune::function(instance)]
+pub async fn batch_prepared(
+    ctx: Ref<Context>,
+    keys: Vec<Ref<str>>,
+    params: Vec<Value>,
+) -> Result<(), CassError> {
+    ctx.batch_prepared(keys.iter().map(|k| k.deref()).collect(), params)
+        .await
+}
+
+#[rune::function(instance)]
 pub async fn init_partition_row_distribution_preset(
     mut ctx: Mut<Context>,
     preset_name: Ref<str>,
