@@ -1,4 +1,4 @@
-# Lightweight Benchmarking Tool for Apache Cassandra
+# Lightweight Benchmarking Tool for Apache Cassandra and ScyllaDB
 
 **Runs custom CQL workloads against a Cassandra cluster and measures throughput and response times**
 
