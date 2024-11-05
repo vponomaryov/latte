@@ -1,4 +1,4 @@
-use crate::config::{RunCommand, PRINT_RETRY_ERROR_LIMIT, WeightedFunction};
+use crate::config::{RunCommand, WeightedFunction, PRINT_RETRY_ERROR_LIMIT};
 use crate::stats::percentiles::Percentile;
 use crate::stats::{BenchmarkCmp, BenchmarkStats, Mean, Sample, Significance};
 use chrono::{DateTime, Local, TimeZone};

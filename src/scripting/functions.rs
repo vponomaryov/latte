@@ -117,9 +117,8 @@ pub fn blob(seed: i64, len: usize) -> Vec<u8> {
 /// the RNG.
 #[rune::function]
 pub fn text(seed: i64, len: usize) -> String {
-    let charset: Vec<char> = (
-        "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ".to_owned() +
-        "0123456789!@#$%^&*()_+-=[]{}|;:',.<>?/")
+    let charset: Vec<char> = ("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ".to_owned()
+        + "0123456789!@#$%^&*()_+-=[]{}|;:',.<>?/")
         .chars()
         .collect();
     let mut rng = SmallRng::seed_from_u64(seed as u64);
@@ -273,12 +272,15 @@ pub async fn init_partition_row_distribution_preset(
         row_count,
         rows_per_partitions_base,
         &rows_per_partitions_groups,
-    ).await
+    )
+    .await
 }
 
 #[rune::function(instance)]
 pub async fn get_partition_idx(ctx: Ref<Context>, preset_name: Ref<str>, idx: u64) -> u64 {
-    ctx.get_partition_idx(&preset_name, idx).await.expect("REASON")
+    ctx.get_partition_idx(&preset_name, idx)
+        .await
+        .expect("REASON")
 }
 
 #[rune::function(instance)]
