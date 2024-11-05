@@ -82,7 +82,7 @@ impl Report {
                 .and_then(|ts| Local.timestamp_opt(ts, 0).latest()),
             tags: self.conf.tags.clone(),
             params: self.conf.params.clone(),
-            rate: self.conf.rate,
+            rate: self.conf.rate.rate,
             throughput: self.result.cycle_throughput.value,
             latency_p50: self
                 .result
@@ -545,7 +545,7 @@ impl<'a> Display for RunConfigCmp<'a> {
             self.line("Concurrency", "req", |conf| {
                 Quantity::from(conf.concurrency)
             }),
-            self.line("Max rate", "op/s", |conf| Quantity::from(conf.rate)),
+            self.line("Max rate", "op/s", |conf| Quantity::from(conf.rate.rate)),
             self.line("Warmup", "s", |conf| {
                 Quantity::from(conf.warmup_duration.period_secs())
             }),

@@ -186,7 +186,9 @@ async fn load(conf: LoadCommand) -> Result<()> {
     let load_options = ExecutionOptions {
         duration: config::Interval::Count(load_count),
         cycle_range: (0, i64::MAX),
-        rate: conf.rate,
+        rate: conf.rate.rate,
+        rate_sine_amplitude: conf.rate.rate_sine_amplitude,
+        rate_sine_period: conf.rate.rate_sine_period,
         threads: conf.threads,
         concurrency: conf.concurrency,
     };
@@ -250,6 +252,8 @@ async fn run(conf: RunCommand) -> Result<()> {
             duration: conf.warmup_duration,
             cycle_range: (conf.start_cycle, conf.end_cycle),
             rate: None,
+            rate_sine_amplitude: conf.rate.rate_sine_amplitude,
+            rate_sine_period: conf.rate.rate_sine_period,
             threads: conf.threads,
             concurrency: conf.concurrency,
         };
@@ -278,7 +282,9 @@ async fn run(conf: RunCommand) -> Result<()> {
         duration: conf.run_duration,
         cycle_range: (conf.start_cycle, conf.end_cycle),
         concurrency: conf.concurrency,
-        rate: conf.rate,
+        rate: conf.rate.rate,
+        rate_sine_amplitude: conf.rate.rate_sine_amplitude,
+        rate_sine_period: conf.rate.rate_sine_period,
         threads: conf.threads,
     };
 

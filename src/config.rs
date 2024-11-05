@@ -16,6 +16,15 @@ use serde::{Deserialize, Serialize};
 /// Limit of retry errors to be kept and then printed in scope of a sampling interval
 pub const PRINT_RETRY_ERROR_LIMIT: u64 = 5;
 
+fn parse_f64(s: &str) -> Result<f64, String> {
+    let parsed_value: f64 = s.parse().map_err(|_| format!("Invalid float: {}", s))?;
+    if (0.0..=1.0).contains(&parsed_value) {
+        Ok(parsed_value)
+    } else {
+        Err("Value must be between 0.0 and 1.0".to_string())
+    }
+}
+
 /// Parse a single key-value pair
 fn parse_key_val<T, U>(s: &str) -> Result<(T, U), anyhow::Error>
 where
@@ -327,6 +336,35 @@ impl Display for WeightedFunction {
 }
 
 #[derive(Parser, Debug, Serialize, Deserialize)]
+pub struct RateConf {
+    /// Number of cycles per second to execute.
+    /// If not given, the load cycles will be executed as fast as possible.
+    #[clap(short('r'), long, value_name = "COUNT")]
+    pub rate: Option<f64>,
+
+    /// Used to enable the 'sinusoidal' rate generation and defines
+    /// the relative value (0.0..1.0) for the variation from the main rate (sine amplitude).
+    /// Requires the "rate" option to be defined.
+    #[clap(
+        long("rate-sine-amplitude"),
+        aliases = &["rate-amplitude", "rate-sine-variation", "rate-variation"],
+        value_parser = parse_f64,
+        value_name = "RATE-MULTIPLIER",
+    )]
+    pub rate_sine_amplitude: Option<f64>,
+
+    /// Used for the 'sinusoidal' rate generation as a definition of the rate sine wave period.
+    #[clap(
+        long("rate-sine-period"),
+        aliases = &["sine-period"],
+        default_value = "1m",
+        value_name = "DURATION",
+        value_parser = parse_duration::parse,
+    )]
+    pub rate_sine_period: Duration,
+}
+
+#[derive(Parser, Debug, Serialize, Deserialize)]
 #[command(next_line_help = true)]
 pub struct EditCommand {
     /// Path to the workload definition file.
@@ -353,10 +391,8 @@ pub struct SchemaCommand {
 #[derive(Parser, Debug, Serialize, Deserialize)]
 #[command(next_line_help = true)]
 pub struct LoadCommand {
-    /// Number of cycles per second to execute.
-    /// If not given, the load cycles will be executed as fast as possible.
-    #[clap(short('r'), long, value_name = "COUNT")]
-    pub rate: Option<f64>,
+    #[clap(flatten)]
+    pub rate: RateConf,
 
     /// Number of worker threads used by the driver.
     #[clap(short('t'), long, default_value = "1", value_name = "COUNT")]
@@ -386,10 +422,8 @@ pub struct LoadCommand {
 #[derive(Parser, Debug, Serialize, Deserialize)]
 #[command(next_line_help = true)]
 pub struct RunCommand {
-    /// Number of cycles per second to execute.
-    /// If not given, the benchmark cycles will be executed as fast as possible.
-    #[clap(short('r'), long, value_name = "COUNT")]
-    pub rate: Option<f64>,
+    #[clap(flatten)]
+    pub rate: RateConf,
 
     /// Number of cycles or duration of the warmup phase.
     #[clap(
