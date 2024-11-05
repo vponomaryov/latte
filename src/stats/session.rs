@@ -43,11 +43,9 @@ impl SessionStats {
         self.resp_times_ns.record(duration);
         self.req_count += 1;
         match rs {
-            Ok(rs) => {
-                match total_rows {
-                    Some(n) => self.row_count += n,
-                    None => self.row_count += rs.rows.as_ref().map(|r| r.len()).unwrap_or(0) as u64,
-                }
+            Ok(rs) => match total_rows {
+                Some(n) => self.row_count += n,
+                None => self.row_count += rs.rows.as_ref().map(|r| r.len()).unwrap_or(0) as u64,
             },
             Err(e) => {
                 self.req_error_count += 1;
