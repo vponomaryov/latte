@@ -1,7 +1,7 @@
 use crate::config::ConnectionConf;
 use crate::scripting::cass_error::{CassError, CassErrorKind};
 use crate::scripting::context::Context;
-use openssl::ssl::{SslContext, SslContextBuilder, SslFiletype, SslMethod};
+use openssl::ssl::{SslContext, SslContextBuilder, SslFiletype, SslMethod, SslVerifyMode};
 use scylla::load_balancing::DefaultPolicy;
 use scylla::transport::session::PoolSize;
 use scylla::{ExecutionProfile, SessionBuilder};
@@ -17,6 +17,9 @@ fn ssl_context(conf: &&ConnectionConf) -> Result<Option<SslContext>, CassError> 
         }
         if let Some(path) = &conf.ssl_key_file {
             ssl.set_private_key_file(path, SslFiletype::PEM)?;
+        }
+        if conf.ssl_peer_verification {
+            ssl.set_verify(SslVerifyMode::PEER);
         }
         Ok(Some(ssl.build()))
     } else {

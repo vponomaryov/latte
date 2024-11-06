@@ -173,6 +173,10 @@ pub struct ConnectionConf {
     #[clap(long("ssl-key"), value_name = "PATH")]
     pub ssl_key_file: Option<PathBuf>,
 
+    /// Verify if the peer's certificate is trusted
+    #[clap(long("ssl-peer-verification"))]
+    pub ssl_peer_verification: bool,
+
     /// Datacenter name
     #[clap(long("datacenter"), required = false)]
     pub datacenter: Option<String>,
