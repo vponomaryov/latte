@@ -490,7 +490,7 @@ pub struct RunCommand {
     #[clap(long("tag"), value_delimiter = ',')]
     pub tags: Vec<String>,
 
-    /// Wether to generate final report or not. If disabled (default) then memory consumption will
+    /// Whether to generate final report or not. If disabled (default) then memory consumption will
     /// be static, otherwise it will leak linearly storing samples info for a final report
     /// calculation.
     #[clap(long("generate-report"), required = false)]
@@ -705,6 +705,10 @@ pub struct AppConfig {
     /// Directory where log files are stored.
     #[clap(long("log-dir"), env("LATTE_LOG_DIR"), default_value = ".")]
     pub log_dir: PathBuf,
+
+    /// Whether to create log file and write to it or not.
+    #[clap(long("enable-logging"), required = false)]
+    pub enable_logging: bool,
 
     #[clap(subcommand)]
     pub command: Command,

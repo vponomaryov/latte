@@ -563,12 +563,16 @@ fn run_id() -> String {
 fn main() {
     let run_id = run_id();
     let config = AppConfig::parse();
-    let _guard = match setup_logging(run_id.as_str(), &config) {
-        Ok(guard) => guard,
-        Err(e) => {
-            eprintln!("error: {e}");
-            exit(1);
+    let _guard = if config.enable_logging {
+        match setup_logging(run_id.as_str(), &config) {
+            Ok(guard) => Some(guard),
+            Err(e) => {
+                eprintln!("error: {e}");
+                exit(1);
+            }
         }
+    } else {
+        None
     };
 
     let command = config.command;
