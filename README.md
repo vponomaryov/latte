@@ -88,7 +88,7 @@ dpkg -i latte-<version>.deb
 ## From source
 
 1. [Install Rust toolchain](https://rustup.rs/)
-2. Run `cargo install latte-cli`
+2. Run `cargo install --path .`
 
 ## Usage
 
