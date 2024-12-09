@@ -22,7 +22,6 @@ chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4", features = ["derive", "cargo", "env"] }
 console = "0.15.0"
 cpu-time = "1.0.0"
-err-derive = "0.3"
 futures = "0.3"
 hdrhistogram = "7.1.0"
 hytra = "0.1.2"
