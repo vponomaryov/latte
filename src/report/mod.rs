@@ -4,7 +4,6 @@ use crate::stats::{BenchmarkCmp, BenchmarkStats, Mean, Sample, Significance};
 use chrono::{DateTime, Local, TimeZone};
 use console::{pad_str, style, Alignment};
 use core::fmt;
-use err_derive::*;
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use std::collections::BTreeSet;
@@ -15,6 +14,7 @@ use std::path::{Path, PathBuf};
 use std::{fs, io};
 use strum::IntoEnumIterator;
 use table::Row;
+use thiserror::Error;
 
 pub mod plot;
 pub mod table;
@@ -26,10 +26,10 @@ const ERR_MARGIN: f64 = 3.29;
 
 #[derive(Debug, Error)]
 pub enum ReportLoadError {
-    #[error(display = "{}", _0)]
-    IO(#[source] io::Error),
-    #[error(display = "{}", _0)]
-    Deserialize(#[source] serde_json::Error),
+    #[error("{0}")]
+    IO(#[from] io::Error),
+    #[error("{0}")]
+    Deserialize(#[from] serde_json::Error),
 }
 
 /// Keeps all data we want to save in a report:
@@ -471,7 +471,7 @@ impl RunConfigCmp<'_> {
     }
 }
 
-impl<'a> Display for RunConfigCmp<'a> {
+impl Display for RunConfigCmp<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         writeln!(f, "{}", fmt_section_header("CONFIG"))?;
         if self.v2.is_some() {
@@ -652,7 +652,7 @@ impl BenchmarkCmp<'_> {
 }
 
 /// Formats all benchmark stats
-impl<'a> Display for BenchmarkCmp<'a> {
+impl Display for BenchmarkCmp<'_> {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         writeln!(f, "{}", fmt_section_header("SUMMARY STATS"))?;
         if self.v2.is_some() {
