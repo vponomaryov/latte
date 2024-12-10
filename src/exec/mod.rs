@@ -63,22 +63,27 @@ impl Iterator for InfiniteSinusoidalIterator {
 struct SinusoidalIntervalStream {
     tick_iterator: InfiniteSinusoidalIterator,
     next_expected_tick: Instant,
+    throttle: Option<f64>,
 }
 
 impl SinusoidalIntervalStream {
-    fn new(rate: f64, amplitude: f64, frequency: f64) -> Self {
+    fn new(rate: f64, amplitude: f64, frequency: f64, throttle: Option<f64>) -> Self {
         let tick_iterator = InfiniteSinusoidalIterator::new(rate, amplitude, frequency);
         let now = Instant::now();
         let initial_duration = tokio::time::Duration::from_secs_f64(1.0 / rate);
         Self {
             tick_iterator,
             next_expected_tick: now + initial_duration,
+            throttle,
         }
     }
 
     fn next_interval_duration(&mut self) -> tokio::time::Duration {
-        let adjusted_rate = self.tick_iterator.next();
-        let period_ns = (1_000_000_000.0 / adjusted_rate.unwrap_or(1.0)).max(1.0) as u64;
+        let mut adjusted_rate = self.tick_iterator.next().unwrap_or(1.0);
+        if let Some(throttle) = self.throttle {
+            adjusted_rate = adjusted_rate.min(throttle);
+        }
+        let period_ns = (1_000_000_000.0 / adjusted_rate).max(1.0) as u64;
         tokio::time::Duration::from_nanos(period_ns)
     }
 }
@@ -114,15 +119,26 @@ impl Stream for SinusoidalIntervalStream {
 }
 
 /// Returns a stream emitting sinusoidally changing number of `rate` events per second.
-fn sinusoidal_interval_stream(rate: f64, amplitude: f64, frequency: f64) -> impl Stream<Item = ()> {
-    SinusoidalIntervalStream::new(rate, amplitude, frequency)
+fn sinusoidal_interval_stream(
+    rate: f64,
+    amplitude: f64,
+    frequency: f64,
+    throttle: Option<f64>,
+) -> impl Stream<Item = ()> {
+    SinusoidalIntervalStream::new(rate, amplitude, frequency, throttle)
 }
 
 /// Returns a stream emitting `rate` events per second.
-fn interval_stream(rate: f64) -> IntervalStream {
-    let period = tokio::time::Duration::from_nanos(max(1, (1000000000.0 / rate) as u64));
+fn interval_stream(rate: f64, throttle: Option<f64>) -> IntervalStream {
+    let (effective_rate, behavior) = if let Some(throttle_limit) = throttle {
+        (rate.min(throttle_limit), MissedTickBehavior::Delay)
+    } else {
+        (rate, MissedTickBehavior::Burst)
+    };
+    let period = Duration::from_nanos(max(1, (1_000_000_000.0 / effective_rate) as u64));
     let mut interval = tokio::time::interval(period);
-    interval.set_missed_tick_behavior(MissedTickBehavior::Burst);
+    interval.set_missed_tick_behavior(behavior);
+
     IntervalStream::new(interval)
 }
 
@@ -194,6 +210,7 @@ fn spawn_stream(
     rate: Option<f64>,
     rate_sine_amplitude: Option<f64>, // Enables the sine wave if set
     rate_sine_frequency: f64,
+    throttle: Option<f64>,
     sampling: Interval,
     workload: Workload,
     iter_counter: BoundedCycleCounter,
@@ -202,14 +219,33 @@ fn spawn_stream(
     let (tx, rx) = channel(1);
 
     tokio::spawn(async move {
-        match rate {
-            Some(rate) => {
+        match (rate, throttle) {
+            (None, None) => {
+                let stream = futures::stream::repeat_with(|| ());
+                run_stream(
+                    stream,
+                    workload,
+                    iter_counter,
+                    concurrency,
+                    sampling,
+                    progress,
+                    tx,
+                )
+                .await
+            }
+            // NOTE: 'rate' and/or 'throttle' are set. Use 'throttle' as rate if 'rate' is not defined.
+            _ => {
+                let effective_rate = match rate {
+                    Some(some_rate) => some_rate,
+                    None => throttle.unwrap(),
+                };
                 match rate_sine_amplitude {
                     Some(rate_sine_amplitude) => {
                         let stream = sinusoidal_interval_stream(
-                            rate,
-                            rate_sine_amplitude * rate, // transform to absolute value
+                            effective_rate,
+                            rate_sine_amplitude * effective_rate, // transform to absolute value
                             rate_sine_frequency,
+                            throttle,
                         );
                         run_stream(
                             stream,
@@ -223,7 +259,7 @@ fn spawn_stream(
                         .await
                     }
                     None => {
-                        let stream = interval_stream(rate);
+                        let stream = interval_stream(effective_rate, throttle);
                         run_stream(
                             stream,
                             workload,
@@ -236,19 +272,6 @@ fn spawn_stream(
                         .await
                     }
                 }
-            }
-            None => {
-                let stream = futures::stream::repeat_with(|| ());
-                run_stream(
-                    stream,
-                    workload,
-                    iter_counter,
-                    concurrency,
-                    sampling,
-                    progress,
-                    tx,
-                )
-                .await
             }
         }
     });
@@ -282,6 +305,8 @@ pub struct ExecutionOptions {
     pub rate_sine_amplitude: Option<f64>,
     /// Rate sine wave period
     pub rate_sine_period: Duration,
+    /// Limit the rate of requests in requests per second to this value
+    pub throttle: Option<f64>,
     /// Number of parallel threads of execution
     pub threads: NonZeroUsize,
     /// Number of outstanding async requests per each thread
@@ -317,6 +342,7 @@ pub async fn par_execute(
     let rate = exec_options.rate;
     let rate_sine_amplitude = exec_options.rate_sine_amplitude;
     let rate_sine_frequency = 1.0 / exec_options.rate_sine_period.as_secs_f64();
+    let throttle = exec_options.throttle;
     let progress = match exec_options.duration {
         Interval::Count(count) => Progress::with_count(name.to_string(), count),
         Interval::Time(duration) => Progress::with_duration(name.to_string(), duration),
@@ -337,6 +363,7 @@ pub async fn par_execute(
             rate.map(|r| r / (thread_count as f64)),
             rate_sine_amplitude,
             rate_sine_frequency,
+            throttle,
             sampling,
             workload.clone()?,
             deadline.share(),

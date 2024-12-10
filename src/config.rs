@@ -362,6 +362,10 @@ pub struct RateConf {
         value_parser = parse_duration::parse,
     )]
     pub rate_sine_period: Duration,
+
+    /// Maximum number of cycles per second to execute.
+    #[clap(long("throttle"), aliases = &["rate-throttle"], value_name = "COUNT")]
+    pub throttle: Option<f64>,
 }
 
 #[derive(Parser, Debug, Serialize, Deserialize)]

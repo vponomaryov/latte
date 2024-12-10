@@ -189,6 +189,7 @@ async fn load(conf: LoadCommand) -> Result<()> {
         rate: conf.rate.rate,
         rate_sine_amplitude: conf.rate.rate_sine_amplitude,
         rate_sine_period: conf.rate.rate_sine_period,
+        throttle: conf.rate.throttle,
         threads: conf.threads,
         concurrency: conf.concurrency,
     };
@@ -254,6 +255,7 @@ async fn run(conf: RunCommand) -> Result<()> {
             rate: None,
             rate_sine_amplitude: conf.rate.rate_sine_amplitude,
             rate_sine_period: conf.rate.rate_sine_period,
+            throttle: conf.rate.throttle,
             threads: conf.threads,
             concurrency: conf.concurrency,
         };
@@ -285,6 +287,7 @@ async fn run(conf: RunCommand) -> Result<()> {
         rate: conf.rate.rate,
         rate_sine_amplitude: conf.rate.rate_sine_amplitude,
         rate_sine_period: conf.rate.rate_sine_period,
+        throttle: conf.rate.throttle,
         threads: conf.threads,
     };
 
