@@ -445,15 +445,22 @@ impl Workload {
     /// This should be idempotent –
     /// the generated action should be a function of the iteration number.
     /// Returns the cycle number and the end time of the query.
-    pub async fn run(&self, cycle: i64) -> Result<(i64, Instant), LatteError> {
-        let start_time = Instant::now();
+    pub async fn run(
+        &self,
+        cycle: i64,
+        scheduled_time: Instant,
+    ) -> Result<(i64, Instant), LatteError> {
         let mut rng = SmallRng::seed_from_u64(cycle as u64);
         let context = SessionRef::new(&self.context);
         let function = self.router.select(&mut rng);
+
+        // TODO: calculate 2nd metric using 'start_time'?
+        // let start_time = Instant::now();
         let result = self.program.async_call(function, (context, cycle)).await;
         let end_time = Instant::now();
         let mut state = self.state.try_lock().unwrap();
-        let duration = end_time - start_time;
+        let duration = end_time - scheduled_time;
+
         match result {
             Ok(_) => {
                 state.operation_completed(function, duration);

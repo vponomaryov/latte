@@ -5,7 +5,6 @@ use futures::{pin_mut, SinkExt, Stream, StreamExt};
 use itertools::Itertools;
 use pin_project::pin_project;
 use status_line::StatusLine;
-use std::cmp::max;
 use std::f64::consts;
 use std::future::ready;
 use std::num::NonZeroUsize;
@@ -15,8 +14,6 @@ use std::task::{Context, Poll};
 use std::time::{Duration, Instant};
 use tokio::pin;
 use tokio::signal::ctrl_c;
-use tokio::time::MissedTickBehavior;
-use tokio_stream::wrappers::IntervalStream;
 
 use crate::error::{LatteError, Result};
 use crate::{
@@ -53,6 +50,9 @@ impl Iterator for InfiniteSinusoidalIterator {
     type Item = f64;
 
     fn next(&mut self) -> Option<f64> {
+        if self.amplitude == 0.0 {
+            return Some(self.rate);
+        }
         let elapsed = self.start.elapsed().as_secs_f64();
         let adjusted_rate = self.rate + self.amplitude * (self.step * elapsed).sin();
         Some(adjusted_rate)
@@ -84,21 +84,24 @@ impl SinusoidalIntervalStream {
 }
 
 impl Stream for SinusoidalIntervalStream {
-    type Item = ();
+    // NOTE: pass through the 'scheduled time' for further
+    //       coordinated omission fixed latency calculations.
+    type Item = Instant;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         let now = Instant::now();
+        let current_expected_tick = self.next_expected_tick;
         if now >= self.next_expected_tick {
             let interval_duration = self.next_interval_duration();
             self.next_expected_tick += interval_duration;
-            Poll::Ready(Some(()))
+            Poll::Ready(Some(current_expected_tick))
         } else {
             // NOTE: If we are behind, keep trying to emit ticks until we catch up
             let interval_duration = self.next_interval_duration();
             let next_tick = self.next_expected_tick + interval_duration;
             if next_tick <= now {
                 self.next_expected_tick = next_tick;
-                Poll::Ready(Some(()))
+                Poll::Ready(Some(current_expected_tick))
             } else {
                 // NOTE: If we are ahead, sleep for the remaining duration
                 let sleep_duration = self.next_expected_tick - now;
@@ -114,16 +117,12 @@ impl Stream for SinusoidalIntervalStream {
 }
 
 /// Returns a stream emitting sinusoidally changing number of `rate` events per second.
-fn sinusoidal_interval_stream(rate: f64, amplitude: f64, frequency: f64) -> impl Stream<Item = ()> {
+fn sinusoidal_interval_stream(
+    rate: f64,
+    amplitude: f64,
+    frequency: f64,
+) -> impl Stream<Item = Instant> {
     SinusoidalIntervalStream::new(rate, amplitude, frequency)
-}
-
-/// Returns a stream emitting `rate` events per second.
-fn interval_stream(rate: f64) -> IntervalStream {
-    let period = tokio::time::Duration::from_nanos(max(1, (1000000000.0 / rate) as u64));
-    let mut interval = tokio::time::interval(period);
-    interval.set_missed_tick_behavior(MissedTickBehavior::Burst);
-    IntervalStream::new(interval)
 }
 
 /// Runs a stream of workload cycles till completion in the context of the current task.
@@ -138,8 +137,8 @@ fn interval_stream(rate: f64) -> IntervalStream {
 /// - progress: progress bar notified about each successful cycle
 /// - out: the channel to receive workload statistics
 ///
-async fn run_stream<T>(
-    stream: impl Stream<Item = T> + std::marker::Unpin,
+async fn run_stream(
+    stream: impl Stream<Item = Instant> + std::marker::Unpin,
     workload: Workload,
     cycle_counter: BoundedCycleCounter,
     concurrency: NonZeroUsize,
@@ -152,10 +151,12 @@ async fn run_stream<T>(
     let sample_duration = sampling.period().unwrap_or(tokio::time::Duration::MAX);
 
     let stats_stream = stream
-        .map(|_| iter_counter.next())
-        .take_while(|i| ready(i.is_some()))
-        // unconstrained to workaround quadratic complexity of buffer_unordered ()
-        .map(|i| tokio::task::unconstrained(workload.run(i.unwrap())))
+        .map(|scheduled_time| iter_counter.next().map(|cycle| (cycle, scheduled_time)))
+        .take_while(|opt| ready(opt.is_some()))
+        .map(|opt| {
+            let (cycle, scheduled_time) = opt.unwrap();
+            tokio::task::unconstrained(workload.run(cycle, scheduled_time))
+        })
         .buffer_unordered(concurrency.get())
         .inspect(|_| progress.tick())
         .take_until(ctrl_c())
@@ -204,41 +205,26 @@ fn spawn_stream(
     tokio::spawn(async move {
         match rate {
             Some(rate) => {
-                match rate_sine_amplitude {
-                    Some(rate_sine_amplitude) => {
-                        let stream = sinusoidal_interval_stream(
-                            rate,
-                            rate_sine_amplitude * rate, // transform to absolute value
-                            rate_sine_frequency,
-                        );
-                        run_stream(
-                            stream,
-                            workload,
-                            iter_counter,
-                            concurrency,
-                            sampling,
-                            progress,
-                            tx,
-                        )
-                        .await
-                    }
-                    None => {
-                        let stream = interval_stream(rate);
-                        run_stream(
-                            stream,
-                            workload,
-                            iter_counter,
-                            concurrency,
-                            sampling,
-                            progress,
-                            tx,
-                        )
-                        .await
-                    }
-                }
+                // NOTE: if 'rate_sine_amplitude' is empty or 0.0
+                //       then it will behave like common uniform rate limiter.
+                let stream = sinusoidal_interval_stream(
+                    rate,
+                    rate_sine_amplitude.unwrap_or(0.0) * rate, // transform to absolute value
+                    rate_sine_frequency,
+                );
+                run_stream(
+                    stream,
+                    workload,
+                    iter_counter,
+                    concurrency,
+                    sampling,
+                    progress,
+                    tx,
+                )
+                .await
             }
             None => {
-                let stream = futures::stream::repeat_with(|| ());
+                let stream = futures::stream::repeat_with(Instant::now);
                 run_stream(
                     stream,
                     workload,
@@ -257,9 +243,9 @@ fn spawn_stream(
 
 /// Receives one item from each of the streams.
 /// Streams that are closed are ignored.
-async fn receive_one_of_each<T, S>(streams: &mut [S]) -> Vec<T>
+async fn receive_one_of_each<Instant, S>(streams: &mut [S]) -> Vec<Instant>
 where
-    S: Stream<Item = T> + Unpin,
+    S: Stream<Item = Instant> + Unpin,
 {
     let mut items = Vec::with_capacity(streams.len());
     for s in streams {
