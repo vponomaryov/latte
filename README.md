@@ -60,7 +60,6 @@ user-defined data structures, objects, enums, constants, macros and many more.
 * Programmable data generation
 * Workload parameterization
 * Accurate measurement of throughput and response times with error margins
-* No coordinated omission
 * Configurable number of connections and threads
 * Rate and concurrency limiters
 * Progress bars
